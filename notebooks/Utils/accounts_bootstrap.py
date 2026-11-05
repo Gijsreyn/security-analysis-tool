@@ -326,7 +326,7 @@ from clientpkgs.accounts_oauth import AccountsOAuth
 
 try:
     acct_oauth = AccountsOAuth(json_)
-    sp_list = acct_oauth.get_account_service_principals()
+    sp_list =     sp_list = acct_oauth.get_account_service_principals() if getSecurityBestPracticeRecord('119', cloud_type)[0] else []
     sp_secrets_all = []
     for sp in sp_list:
         sp_id = str(sp.get('id', ''))
