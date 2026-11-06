@@ -46,8 +46,34 @@ def getLibPath():
 
 # COMMAND ----------
 
-# Construct workspace path to wheel file dynamically
-WHEEL_PATH = f'{getLibPath()}/dbl_sat_sdk-{SDK_VERSION}-py3-none-any.whl'
+# Resolve the wheel from the synced lib/ folder.
+# Prefer the version this notebook was released with (SDK_VERSION). If that exact
+# wheel is absent but lib/ holds exactly one SDK wheel, install that one and warn,
+# so a notebooks/lib version drift at deploy time does not abort every run.
+# Anything else is a real deployment error: fail with what was actually found.
+import glob, os
+
+LIB_PATH = getLibPath()
+EXPECTED_WHEEL = f'{LIB_PATH}/dbl_sat_sdk-{SDK_VERSION}-py3-none-any.whl'
+available_wheels = sorted(glob.glob(f'{LIB_PATH}/dbl_sat_sdk-*.whl'))
+
+if os.path.exists(EXPECTED_WHEEL):
+    WHEEL_PATH = EXPECTED_WHEEL
+elif len(available_wheels) == 1:
+    WHEEL_PATH = available_wheels[0]
+    print(
+        f"WARNING: expected dbl_sat_sdk-{SDK_VERSION} in {LIB_PATH} but found "
+        f"{os.path.basename(WHEEL_PATH)}. Installing it anyway. "
+        f"Deploy notebooks/ and lib/ from the same commit so SDK_VERSION matches the wheel."
+    )
+else:
+    found = ', '.join(os.path.basename(w) for w in available_wheels) or 'none'
+    raise FileNotFoundError(
+        f"SAT SDK wheel not found. Expected {EXPECTED_WHEEL}. "
+        f"Wheels present in {LIB_PATH}: {found}. "
+        f"Deploy notebooks/ and lib/ from the same commit and make sure lib/ is synced to the workspace."
+    )
+
 print(f"Installing SAT SDK from: {WHEEL_PATH}")
 
 # COMMAND ----------
@@ -61,3 +87,7 @@ if is_serverless:
     subprocess.run([sys.executable, "-m", "pip", "install", "--no-deps", WHEEL_PATH], check=True)
 else:
     subprocess.run([sys.executable, "-m", "pip", "install", "PyYAML", WHEEL_PATH], check=True)
+
+# Confirm what actually got installed so the run log shows the effective SDK version.
+from importlib.metadata import version as _pkg_version
+print(f"SAT SDK installed: dbl-sat-sdk {_pkg_version('dbl-sat-sdk')}")
